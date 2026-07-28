@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Warden — a dungeon that is paying attention</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    background: #0d1017;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    width: min(100vw, calc(100dvh * 1.5));
+    aspect-ratio: 3 / 2;
+    cursor: crosshair;
+    background: #0d1017;
+  }
+</style>
+</head>
+<body>
+  <canvas id="game" width="960" height="640"></canvas>
+
+  <!-- Plain scripts, loaded in dependency order. No modules on purpose: this
+       means index.html opens straight off the filesystem with no dev server,
+       which keeps the edit → reload loop as short as physically possible. -->
+  <script src="src/config.js"></script>
+  <script src="src/util.js"></script>
+  <script src="src/fx.js"></script>
+  <script src="src/input.js"></script>
+  <script src="src/room.js"></script>
+  <script src="src/hero.js"></script>
+  <script src="src/enemies.js"></script>
+  <script src="src/director.js"></script>
+  <script src="src/game.js"></script>
+</body>
+</html>

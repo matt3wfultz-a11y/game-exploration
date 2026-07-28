@@ -2,47 +2,78 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>The Warden — a dungeon that is paying attention</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>game-exploration</title>
 <style>
   :root { color-scheme: dark; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body {
-    height: 100%;
-    background: #0d1017;
-    overflow: hidden;
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-  }
   body {
+    background: #0c0f16;
+    color: #e8e4d9;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 32px 20px;
   }
-  canvas {
+  main { width: min(100%, 640px); display: flex; flex-direction: column; gap: 28px; }
+  h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; }
+  .sub { color: #8990a4; font-size: 0.95rem; }
+  ul { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  a.card {
     display: block;
-    width: min(100vw, calc(100dvh * 1.5));
-    aspect-ratio: 3 / 2;
-    cursor: crosshair;
-    background: #0d1017;
+    text-decoration: none;
+    color: inherit;
+    background: #161a24;
+    border: 1px solid rgba(232,228,217,0.1);
+    border-left: 3px solid var(--key);
+    padding: 16px 18px;
+    transition: background 0.12s ease;
   }
+  a.card:hover, a.card:focus-visible { background: #1e2331; outline: none; }
+  a.card:focus-visible { border-color: #f0c05a; }
+  .name { font-size: 1.15rem; font-weight: 700; }
+  .tag { color: var(--key); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.12em; }
+  .desc { color: #8990a4; font-size: 0.9rem; margin-top: 6px; }
+  footer { color: #8990a4; font-size: 0.85rem; border-top: 1px solid rgba(232,228,217,0.1); padding-top: 16px; }
+  code { background: #161a24; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
 </style>
 </head>
 <body>
-  <canvas id="game" width="960" height="640"></canvas>
+<main>
+  <div>
+    <h1>game-exploration</h1>
+    <p class="sub">Small, complete games. Each one runs by opening its file — no build step.</p>
+  </div>
 
-  <!-- Plain scripts, loaded in dependency order. No modules on purpose: this
-       means index.html opens straight off the filesystem with no dev server,
-       which keeps the edit → reload loop as short as physically possible. -->
-  <script src="src/config.js"></script>
-  <script src="src/util.js"></script>
-  <script src="src/fx.js"></script>
-  <script src="src/input.js"></script>
-  <script src="src/room.js"></script>
-  <script src="src/hero.js"></script>
-  <script src="src/enemies.js"></script>
-  <script src="src/director.js"></script>
-  <script src="src/game.js"></script>
+  <ul>
+    <li>
+      <a class="card" href="games/pest-control/index.html" style="--key:#f0c05a">
+        <div class="tag">Reverse dungeon crawler</div>
+        <div class="name">Pest Control</div>
+        <div class="desc">
+          You are the dungeon. Place traps and monsters, then watch an AI hero try to
+          reach your vault. He remembers what killed him and comes back equipped for it.
+        </div>
+      </a>
+    </li>
+    <li>
+      <a class="card" href="games/warden/index.html" style="--key:#b06be0">
+        <div class="tag">Prototype · adversarial director</div>
+        <div class="name">The Warden</div>
+        <div class="desc">
+          A top-down crawler where you play the hero and the dungeon studies you,
+          building each next room to punish how you played the last one.
+        </div>
+      </a>
+    </li>
+  </ul>
+
+  <footer>
+    <code>node build.js</code> bundles each game into a single self-contained file in <code>dist/</code>.
+  </footer>
+</main>
 </body>
 </html>

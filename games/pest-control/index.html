@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pest Control — you are the dungeon</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    background: #0c0f16;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas {
+    display: block;
+    width: min(100vw, calc(100dvh * (960 / 780)));
+    aspect-ratio: 960 / 780;
+    cursor: pointer;
+    background: #0c0f16;
+  }
+</style>
+</head>
+<body>
+  <canvas id="game" width="960" height="780"></canvas>
+
+  <script src="src/config.js"></script>
+  <script src="src/util.js"></script>
+  <script src="src/fx.js"></script>
+  <script src="src/input.js"></script>
+  <script src="src/level.js"></script>
+  <script src="src/memory.js"></script>
+  <script src="src/dungeon.js"></script>
+  <script src="src/hero.js"></script>
+  <script src="src/game.js"></script>
+</body>
+</html>

@@ -1,35 +1,53 @@
 #!/usr/bin/env node
-/* Bundle the game into one self-contained HTML file at dist/warden.html.
+/* Bundle a game into one self-contained HTML file under dist/.
    No dependencies, no toolchain — it just inlines the scripts in order.
    Useful for sharing a single file, or uploading to itch.io.
 
-   Usage: node build.js
+   Usage:
+     node build.js                      build every game in games/
+     node build.js games/pest-control   build one
 */
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = __dirname;
-const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const GAMES_DIR = path.join(ROOT, 'games');
 
-// Pull the script list straight out of index.html so the two can't drift apart.
-const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
-if (!srcs.length) throw new Error('no <script src> tags found in index.html');
+function build(gameDir) {
+  const name = path.basename(gameDir);
+  const indexPath = path.join(gameDir, 'index.html');
+  if (!fs.existsSync(indexPath)) throw new Error(`no index.html in ${gameDir}`);
+  const html = fs.readFileSync(indexPath, 'utf8');
 
-const bundle = srcs.map((src) => {
-  const code = fs.readFileSync(path.join(ROOT, src), 'utf8');
-  return `/* ===== ${src} ${'='.repeat(Math.max(0, 66 - src.length))} */\n${code}`;
-}).join('\n');
+  // Pull the script list out of index.html so the two can never drift apart.
+  const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
+  if (!srcs.length) throw new Error(`no <script src> tags in ${indexPath}`);
 
-// `const STATE` in game.js is top-level; wrapping the bundle in an IIFE keeps
-// it out of the global scope and avoids collisions with a host page.
-const out = html.replace(
-  /<!--[\s\S]*?-->\s*(?:<script src="[^"]+"><\/script>\s*)+/,
-  `<script>\n(function () {\n${bundle}\n})();\n</script>\n`
-);
+  const bundle = srcs.map((src) => {
+    const code = fs.readFileSync(path.join(gameDir, src), 'utf8');
+    return `/* ===== ${src} ${'='.repeat(Math.max(0, 64 - src.length))} */\n${code}`;
+  }).join('\n');
 
-fs.mkdirSync(path.join(ROOT, 'dist'), { recursive: true });
-const dest = path.join(ROOT, 'dist', 'warden.html');
-fs.writeFileSync(dest, out);
+  // Top-level `const` in the game files would otherwise land in global scope;
+  // the IIFE keeps a bundled game safe to drop into any host page.
+  const out = html.replace(
+    /(?:<!--[\s\S]*?-->\s*)?(?:<script src="[^"]+"><\/script>\s*)+/,
+    `<script>\n(function () {\n${bundle}\n})();\n</script>\n`
+  );
 
-const kb = (Buffer.byteLength(out) / 1024).toFixed(1);
-console.log(`built ${dest} (${kb} KB, ${srcs.length} sources inlined)`);
+  fs.mkdirSync(path.join(ROOT, 'dist'), { recursive: true });
+  const dest = path.join(ROOT, 'dist', `${name}.html`);
+  fs.writeFileSync(dest, out);
+  console.log(`built dist/${name}.html (${(Buffer.byteLength(out) / 1024).toFixed(1)} KB, ${srcs.length} sources)`);
+  return dest;
+}
+
+const arg = process.argv[2];
+if (arg) {
+  build(path.resolve(ROOT, arg));
+} else {
+  for (const entry of fs.readdirSync(GAMES_DIR)) {
+    const dir = path.join(GAMES_DIR, entry);
+    if (fs.statSync(dir).isDirectory()) build(dir);
+  }
+}
