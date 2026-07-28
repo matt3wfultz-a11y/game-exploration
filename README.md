@@ -9,6 +9,30 @@ dependencies.
 | **[Pest Control](games/pest-control/)** | You are the dungeon. An AI hero tries to get through. |
 | **[The Warden](games/warden/)** | You are the hero. The dungeon studies you. *(earlier prototype)* |
 
+## Sharing it
+
+Three options, cheapest first.
+
+**Send someone a file.** `node build.js` writes `dist/pest-control.html` — one
+self-contained file, ~76 KB, no dependencies. Email it, drop it in a chat,
+put it on a USB stick. They double-click it and it runs, offline, forever. This
+is the most durable way to hand someone a small game.
+
+**A public link (GitHub Pages).** `.github/workflows/pages.yml` builds and
+deploys the picker page and both games on every push. It needs one manual
+switch flipped first, once:
+
+> repo **Settings → Pages → Build and deployment → Source: GitHub Actions**
+
+After that, pushing publishes to
+`https://<your-username>.github.io/game-exploration/`. Anyone can open it — no
+account, no install. If nothing appears, check the **Actions** tab; the first
+run has to finish before the URL exists.
+
+**Anything that hosts a static folder** works too, since there's no build step
+and no server: drag the repo folder onto Netlify Drop, or use Cloudflare Pages,
+Vercel, or `npx serve .` on your own machine.
+
 ---
 
 # Pest Control
