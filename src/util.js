@@ -51,6 +51,19 @@ G.U = {
     return items[items.length - 1];
   },
 
+  /* localStorage throws outright in some embedded/sandboxed contexts (and in
+     private mode on older Safari). A saved best score is never worth taking
+     the whole game down on boot, so every access goes through here. */
+  load(key, fallback) {
+    try {
+      const v = localStorage.getItem(key);
+      return v === null ? fallback : v;
+    } catch { return fallback; }
+  },
+  save(key, value) {
+    try { localStorage.setItem(key, String(value)); } catch { /* not fatal */ }
+  },
+
   roundRect(ctx, x, y, w, h, r) {
     const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
     ctx.beginPath();

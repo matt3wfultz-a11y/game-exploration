@@ -23,7 +23,7 @@ G.Game = {
 
     this.state = STATE.TITLE;
     this.time = 0;
-    this.best = Number(localStorage.getItem('warden.best') || 0);
+    this.best = Number(G.U.load('warden.best', 0));
 
     this.warden = new G.Warden();
     this.room = new G.Room(1);
@@ -80,7 +80,7 @@ G.Game = {
     if (this.roomIndex >= G.CFG.ROOMS_TO_ESCAPE) {
       if (this.roomIndex > this.best) {
         this.best = this.roomIndex;
-        localStorage.setItem('warden.best', String(this.best));
+        G.U.save('warden.best', this.best);
       }
       this.setState(STATE.WIN);
       return;
@@ -88,7 +88,7 @@ G.Game = {
     this.roomIndex++;
     if (this.roomIndex - 1 > this.best) {
       this.best = this.roomIndex - 1;
-      localStorage.setItem('warden.best', String(this.best));
+      G.U.save('warden.best', this.best);
     }
     this.prepareRoom();
   },
@@ -565,6 +565,11 @@ G.Game = {
   },
 };
 
-addEventListener('DOMContentLoaded', () => {
-  G.Game.init(document.getElementById('game'));
-});
+/* Boot immediately if the DOM is already parsed (which is the case when the
+   bundled build is inlined after the canvas), otherwise wait for it. */
+function bootWarden() {
+  const canvas = document.getElementById('game');
+  if (canvas) G.Game.init(canvas);
+}
+if (document.readyState === 'loading') addEventListener('DOMContentLoaded', bootWarden);
+else bootWarden();
