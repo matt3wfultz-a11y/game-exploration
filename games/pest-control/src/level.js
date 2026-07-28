@@ -12,6 +12,11 @@ window.G = window.G || {};
 G.FLOOR = 0;
 G.BEDROCK = 1;
 
+/* Clockwise from east. Dart traps rotate through these. */
+G.DART_DIRS = [
+  { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 0, dy: -1 },
+];
+
 G.Level = class Level {
   constructor() {
     const C = G.CFG;
@@ -134,7 +139,7 @@ G.Level = class Level {
     return { ok: true, reason: '' };
   }
 
-  place(kind, tx, ty) {
+  place(kind, tx, ty, opts = {}) {
     const def = G.CFG.place[kind];
     const obj = { kind, tx, ty, ...this.center(tx, ty) };
 
@@ -143,7 +148,8 @@ G.Level = class Level {
     }
     if (kind === 'dart') {
       obj.timer = Math.random() * def.interval;
-      obj.dir = this._bestLane(tx, ty);
+      // The player aims it. `_bestLane` is only the opening suggestion.
+      obj.dir = opts.dir ? { ...opts.dir } : this._bestLane(tx, ty);
       obj.known = false;
     }
     if (def.monster) {
@@ -253,6 +259,34 @@ G.Level = class Level {
       cur = from[cur];
     }
     return path.reverse();
+  }
+
+  /* True if a circle at (x, y) overlaps any solid tile. Shared by the hero
+     and by monsters so nothing can ever phase through a wall. */
+  solidForCircle(x, y, r) {
+    for (const [ox, oy] of [[-r, -r], [r, -r], [-r, r], [r, r]]) {
+      const t = this.tileOf(x + ox, y + oy);
+      if (this.blocked(t.tx, t.ty)) return true;
+    }
+    return false;
+  }
+
+  /* Can these two points see each other? Sampled rather than exact — at this
+     tile size the error is invisible and the code is a third the length.
+
+     This is what stops the hero swinging at a goblin through a wall, and
+     stops the goblin swinging back. */
+  lineOfSight(ax, ay, bx, by) {
+    const T = G.CFG.TILE;
+    const steps = Math.ceil(G.U.dist(ax, ay, bx, by) / (T * 0.35));
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const x = ax + (bx - ax) * t;
+      const y = ay + (by - ay) * t;
+      const tile = this.tileOf(x, y);
+      if (this.blocked(tile.tx, tile.ty)) return false;
+    }
+    return true;
   }
 
   /* Straight-line tile walk, used for dart line of fire. */

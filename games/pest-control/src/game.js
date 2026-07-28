@@ -79,6 +79,7 @@ G.Game = {
     this.lastResult = null;
     this.spentThisWave = 0;
     this.tool = G.Meta.unlockedPieces()[0] || 'wall';
+    this.dartDirIdx = 0;      // which way the next dart trap will face
     G.FX.reset();
   },
 
@@ -91,6 +92,10 @@ G.Game = {
     const base = G.CFG.place[kind].cost;
     const adj = this.mods['cost' + kind.charAt(0).toUpperCase() + kind.slice(1)] || 0;
     return Math.max(4, base + adj);
+  },
+
+  dartDirName() {
+    return ['east', 'south', 'west', 'north'][this.dartDirIdx];
   },
 
   triggerCooldown() {
@@ -254,7 +259,7 @@ G.Game = {
     const check = this.level.canPlace(this.tool, tx, ty);
     if (!check.ok) { if (check.reason) this.say(check.reason); return; }
 
-    const obj = this.level.place(this.tool, tx, ty);
+    const obj = this.level.place(this.tool, tx, ty, { dir: G.DART_DIRS[this.dartDirIdx] });
     if (this.tool === 'brute') { obj.maxHp += this.mods.bruteHp; obj.hp = obj.maxHp; }
     this.gold -= cost;
     this.spentThisWave += cost;
@@ -288,9 +293,15 @@ G.Game = {
       this.update(STEP);
       this._acc -= STEP;
       steps++;
+      // Clear edge-triggered input after the FIRST physics step, not once per
+      // frame. The loop runs up to 24 times per frame (more at 4x speed), and
+      // every one of those steps used to see the same keypress as fresh — so a
+      // single tap of R rotated the dart twice, and Tab jumped several speeds.
+      // If no step ran at all the press is deliberately held over to the next
+      // frame rather than dropped.
+      G.Input.endFrame();
     }
     this.draw();
-    G.Input.endFrame();
   },
 
   update(dt) {
@@ -396,6 +407,19 @@ G.Game = {
 
     for (const kind of G.Meta.unlockedPieces()) {
       if (I.wasPressed('Digit' + G.CFG.place[kind].key)) this.tool = kind;
+    }
+
+    // R rotates. If the cursor is over a dart trap it turns that one (free);
+    // otherwise it turns the aim the next one will be placed with.
+    if (I.wasPressed('KeyR')) {
+      const under = I.mouse.onBoard ? this.level.placedAt(I.mouse.tx, I.mouse.ty) : null;
+      if (under && under.kind === 'dart') {
+        G.Dungeon.rotateDart(under);
+      } else {
+        this.dartDirIdx = (this.dartDirIdx + 1) % G.DART_DIRS.length;
+        this.tool = 'dart';
+        this.say(`Aiming ${this.dartDirName()}.`, 1.2);
+      }
     }
 
     const ui = this.paletteLayout();
@@ -597,6 +621,40 @@ G.Game = {
     ctx.lineWidth = 2;
     ctx.strokeRect(I.mouse.tx * T + 1, I.mouse.ty * T + 1, T - 2, T - 2);
 
+    // Show the dart's lane before committing, so aiming is a decision you can
+    // see rather than one you discover after pressing GO.
+    if (this.tool === 'dart') {
+      const dir = G.DART_DIRS[this.dartDirIdx];
+      const c = this.level.center(I.mouse.tx, I.mouse.ty);
+      // Stop the preview at the first wall. Drawing the full range through
+      // solid rock would promise coverage the trap does not actually have.
+      let reach = def.range + this.mods.dartRange;
+      for (let i = 1; i * T <= reach; i++) {
+        if (this.level.blocked(I.mouse.tx + dir.dx * i, I.mouse.ty + dir.dy * i)) {
+          reach = (i - 0.5) * T;
+          break;
+        }
+      }
+      ctx.globalAlpha = 0.32;
+      ctx.strokeStyle = def.color;
+      ctx.lineWidth = T * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y);
+      ctx.lineTo(c.x + dir.dx * reach, c.y + dir.dy * reach);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      // Arrowhead so the facing reads at a glance.
+      ctx.fillStyle = '#fff';
+      const ax = c.x + dir.dx * 26, ay = c.y + dir.dy * 26;
+      const a = Math.atan2(dir.dy, dir.dx);
+      ctx.beginPath();
+      ctx.moveTo(ax + Math.cos(a) * 9, ay + Math.sin(a) * 9);
+      ctx.lineTo(ax + Math.cos(a + 2.5) * 8, ay + Math.sin(a + 2.5) * 8);
+      ctx.lineTo(ax + Math.cos(a - 2.5) * 8, ay + Math.sin(a - 2.5) * 8);
+      ctx.closePath();
+      ctx.fill();
+    }
+
     // Show a monster's reach while placing — guard range is the whole point
     // of where you put it, so it shouldn't be invisible at decision time.
     if (def.monster) {
@@ -700,7 +758,9 @@ G.Game = {
 
     // Tooltip for the selected tool.
     const def = C.place[this.tool];
-    this.text(ctx, def.desc, 14, C.BOARD_Y + C.BOARD_H + 88, { size: 12, color: C.col.dim, italic: true });
+    let tip = def.desc;
+    if (this.tool === 'dart') tip += `   [R] rotate — aiming ${this.dartDirName()}`;
+    this.text(ctx, tip, 14, C.BOARD_Y + C.BOARD_H + 88, { size: 12, color: C.col.dim, italic: true });
 
     const go = ui.go;
     const hot = this.hit(go, G.Input.mouse.x, G.Input.mouse.y);

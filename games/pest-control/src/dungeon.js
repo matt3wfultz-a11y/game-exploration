@@ -22,8 +22,11 @@ G.Dungeon = {
     }
 
     const d = G.U.dist(m.x, m.y, hero.x, hero.y);
+    // A guard on the other side of a wall is not in the fight. Without this
+    // they reached through solid rock to hit him — and he hit back.
+    const canSee = d <= def.aggro && game.level.lineOfSight(m.x, m.y, hero.x, hero.y);
 
-    if (d <= def.aggro) {
+    if (canSee) {
       if (d <= def.attackRange + hero.radius) {
         if (m.cd <= 0) {
           m.cd = def.attackCooldown;
@@ -57,13 +60,7 @@ G.Dungeon = {
     if (!this._solidAt(game.level, m.x, ny, m.radius)) m.y = ny;
   },
 
-  _solidAt(level, x, y, r) {
-    for (const [ox, oy] of [[-r, -r], [r, -r], [-r, r], [r, r]]) {
-      const t = level.tileOf(x + ox, y + oy);
-      if (level.blocked(t.tx, t.ty)) return true;
-    }
-    return false;
-  },
+  _solidAt(level, x, y, r) { return level.solidForCircle(x, y, r); },
 
   /* ---- Traps ------------------------------------------------------------- */
   updateTrap(t, dt, game) {
@@ -124,18 +121,40 @@ G.Dungeon = {
 
   fireDart(t, game) {
     const def = G.CFG.place.dart;
-    t.timer = def.interval;
-    game.projectiles.push({
-      x: t.x, y: t.y,
-      vx: t.dir.dx * 300, vy: t.dir.dy * 300,
-      radius: 4, damage: def.damage + (game.mods ? game.mods.dartDamage : 0), life: 2.5,
-    });
-    G.FX.burst(t.x, t.y, 4, {
-      color: def.color, speed: 90, life: 0.2,
-      dir: Math.atan2(t.dir.dy, t.dir.dx), spread: 0.6,
+    const mods = game.mods || {};
+    t.timer = def.interval * (mods.dartIntervalMul || 1);
+
+    // Extra darts fan out slightly rather than stacking on one line, so a
+    // volley covers a moving target instead of just doing more damage to a
+    // stationary one.
+    const count = 1 + (mods.dartCount || 0);
+    const base = Math.atan2(t.dir.dy, t.dir.dx);
+    const spread = 0.13;
+    for (let i = 0; i < count; i++) {
+      const offset = count === 1 ? 0 : (i - (count - 1) / 2) * spread;
+      const a = base + offset;
+      game.projectiles.push({
+        x: t.x, y: t.y,
+        vx: Math.cos(a) * 300, vy: Math.sin(a) * 300,
+        radius: 4, damage: def.damage + (mods.dartDamage || 0), life: 2.5,
+      });
+    }
+
+    G.FX.burst(t.x, t.y, 4 + count * 2, {
+      color: def.color, speed: 90, life: 0.2, dir: base, spread: 0.6,
     });
     // Seeing a dart fly is enough — he doesn't have to be hit to learn it.
     game.revealTrap(t);
+  },
+
+  /* Turn a placed dart trap 90°. Free, and build-phase only — re-aiming
+     mid-run would undercut the whole build-then-commit split. */
+  rotateDart(t) {
+    const D = G.DART_DIRS;
+    const i = D.findIndex((d) => d.dx === t.dir.dx && d.dy === t.dir.dy);
+    t.dir = { ...D[(i + 1 + D.length) % D.length] };
+    G.FX.ring(t.x, t.y, { color: G.CFG.place.dart.color, radius: 22, life: 0.25, width: 2 });
+    return t.dir;
   },
 
   /* Snares deal no damage at all. Their whole value is holding him inside

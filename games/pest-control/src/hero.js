@@ -223,6 +223,9 @@ G.Hero = class Hero {
       if (!def.monster || p.hp <= 0) continue;
       const d = G.U.dist(this.x, this.y, p.x, p.y);
       if (d > G.CFG.hero.engageRange) continue;
+      // No swinging through walls, and no abandoning the path to chase
+      // something he cannot actually reach in a straight line.
+      if (!this.level.lineOfSight(this.x, this.y, p.x, p.y)) continue;
       const score = -d + this.memory.threatRank(p.kind) * 1.6;
       if (score > bestScore) { bestScore = score; best = p; }
     }
@@ -247,8 +250,20 @@ G.Hero = class Hero {
   moveToward(tx, ty, dt) {
     const [dx, dy] = G.U.norm(tx - this.x, ty - this.y);
     const sp = this.speed * (this.state === 'flee' ? G.CFG.hero.fleeSpeedMul : 1);
-    this.x += dx * sp * dt;
-    this.y += dy * sp * dt;
+
+    // Axis-separated collision, so he slides along walls instead of stopping
+    // dead on them — and, more importantly, cannot pass through them.
+    //
+    // This used to be a bare position update. Path-following hid it, because
+    // A* only ever hands out walkable waypoints; the moment he broke off to
+    // chase a monster he steered in a straight line and walked through solid
+    // rock. Worth remembering: a movement bug can sit invisible for as long
+    // as something upstream happens to only feed it legal destinations.
+    const nx = this.x + dx * sp * dt;
+    const ny = this.y + dy * sp * dt;
+    if (!this.level.solidForCircle(nx, this.y, this.radius)) this.x = nx;
+    if (!this.level.solidForCircle(this.x, ny, this.radius)) this.y = ny;
+
     this.facing = Math.atan2(dy, dx);
     this.walkPhase += dt * 9;
     this.distanceTravelled += sp * dt;

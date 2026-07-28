@@ -8,10 +8,18 @@
 
    Implementation is deliberately dumb: every relic contributes to one flat
    `mods` object that the rest of the game reads. No callbacks, no event bus.
-   With a pool this size that's less code and far less to debug — and adding a
-   relic means adding one entry plus one line at the use site.
+   Adding a relic means one entry here plus one line at the use site.
+
+   Modifiers come in two flavours and it matters which is which — see MULT
+   below. Anything named `…Mul` is multiplicative and stacks by multiplying
+   (two 0.5s give 0.25); everything else is additive.
    ========================================================================== */
 window.G = window.G || {};
+
+/* Keys that stack multiplicatively, starting from 1. */
+const MULT = new Set([
+  'spikeRearmMul', 'dartIntervalMul', 'snareMul', 'bountyMul', 'lowHpDamageMul',
+]);
 
 G.RELICS = [
   {
@@ -28,6 +36,16 @@ G.RELICS = [
     id: 'longhall', name: 'The Long Hall', tag: 'traps',
     desc: 'Dart traps reach much further and hit harder.',
     mods: { dartRange: 110, dartDamage: 2 },
+  },
+  {
+    id: 'oil', name: 'Oiled Mechanism', tag: 'traps',
+    desc: 'Dart traps fire almost twice as often.',
+    mods: { dartIntervalMul: 0.55 },
+  },
+  {
+    id: 'volley', name: 'Volley', tag: 'traps',
+    desc: 'Dart traps loose an extra dart with every shot.',
+    mods: { dartCount: 1 },
   },
   {
     id: 'warren', name: 'Warren', tag: 'monsters',
@@ -57,7 +75,7 @@ G.RELICS = [
   {
     id: 'butcher', name: "Butcher's Due", tag: 'economy',
     desc: 'Killing him pays 35% more.',
-    mods: { bountyMul: 0.35 },
+    mods: { bountyMul: 1.35 },
   },
   {
     id: 'foolsgold', name: "Fool's Gold", tag: 'control',
@@ -72,7 +90,7 @@ G.RELICS = [
   {
     id: 'choke', name: 'Choke', tag: 'monsters',
     desc: 'Your monsters hit 30% harder once he drops below half health.',
-    mods: { lowHpDamageMul: 0.3 },
+    mods: { lowHpDamageMul: 1.3 },
   },
   {
     id: 'quicklime', name: 'Quicklime', tag: 'traps',
@@ -87,7 +105,7 @@ G.RELICS = [
   {
     id: 'snarewire', name: 'Snare Wire', tag: 'traps',
     desc: 'Snares hold him 60% longer.',
-    mods: { snareMul: 0.6 }, needs: 'snare',
+    mods: { snareMul: 1.6 }, needs: 'snare',
   },
 ];
 
@@ -95,18 +113,19 @@ G.Relics = {
   /* Sum every held relic into one flat modifier bag. */
   aggregate(held) {
     const m = {
-      spikeDamage: 0, spikeRearmMul: 1, dartRange: 0, dartDamage: 0,
+      // additive
+      spikeDamage: 0, dartRange: 0, dartDamage: 0, dartCount: 0,
       costGoblin: 0, costWall: 0, bruteHp: 0,
-      triggerCd: 0, goldPerWave: 0, bountyMul: 1,
-      vaultDelay: 0, forgetPerWave: 0, lowHpDamageMul: 1,
-      pierceBoots: 0, treasures: 0, snareMul: 1,
+      triggerCd: 0, goldPerWave: 0, vaultDelay: 0,
+      forgetPerWave: 0, pierceBoots: 0, treasures: 0,
+      // multiplicative
+      spikeRearmMul: 1, dartIntervalMul: 1, snareMul: 1,
+      bountyMul: 1, lowHpDamageMul: 1,
     };
     for (const r of held) {
       for (const k in r.mods) {
-        const v = r.mods[k];
-        if (k === 'spikeRearmMul' || k === 'snareMul') m[k] *= (k === 'snareMul' ? 1 + v : v);
-        else if (k === 'bountyMul' || k === 'lowHpDamageMul') m[k] += v;
-        else m[k] += v;
+        if (MULT.has(k)) m[k] *= r.mods[k];
+        else m[k] += r.mods[k];
       }
     }
     return m;

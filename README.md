@@ -91,6 +91,7 @@ useless.
 | | |
 |---|---|
 | `1`–`7` or click the palette | pick what to build |
+| `R` | rotate the dart trap — turns the one under the cursor, or aims the next one |
 | left click | place · right click | salvage (85% refund) |
 | `space` | send him in |
 | left click a trap **during a run** | spring it by hand — your only live control |
@@ -149,17 +150,28 @@ visible from reading the code:
    the same player with 15% sloppiness won 0%. Raising treasures from three to
    five converted a pass/fail exam into an actual difficulty gradient.
 
-5. **Relics broke the curve, as they should have.** Nine drafted relics per run
+5. **The hero walked through walls.** `moveToward` had no collision at all —
+   path-following hid it, because A* only ever hands out walkable waypoints.
+   The moment he broke off to chase a monster he steered in a straight line
+   through solid rock. Neither he nor the monsters checked line of sight
+   either, so they traded blows through walls. A movement bug can sit
+   invisible for as long as something upstream only feeds it legal
+   destinations. Now audited in tests: zero frames inside a wall across 8,500
+   samples, zero melee exchanges through one across 215.
+
+6. **Relics broke the curve, as they should have.** Nine drafted relics per run
    took a competent simulated player from a hard-won victory to a 97% win rate.
    Hero scaling was re-tuned against the relic-aware bot rather than left at a
    number measured before relics existed.
 
-Current state, measured against simulated players over 30 runs per setting:
+Current state, measured against simulated players. Note the precision: at 30
+runs per setting, repeat measurements of the *same* config came back 63% and
+53%, so treat these as ±10 points, not as decimals.
 
 | player | wins | avg wave reached |
 |---|---|---|
-| plays well, drafts well | ~63% | 9.6 / 10 |
-| sloppy reads, random drafts | ~7% | 7.5 / 10 |
+| plays well, drafts well | ~55% | ~9 / 10 |
+| sloppy reads, random drafts | ~10% | ~7.5 / 10 |
 
 That gap is deliberate: it leaves room for Warren unlocks to lift a new player
 over time. **This has never been played by a human** — if it feels wrong,

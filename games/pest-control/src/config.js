@@ -47,12 +47,14 @@ G.CFG = {
     radius: 12,
     speed: 74,
     baseHp: 26,
-    hpGrowth: 1.32,       // per wave, compounding. Raised from 1.24 once relics
-                          // existed: nine drafted relics per run made a
-                          // competent player win 97% of the time. Measured
-                          // against simulated players, 1.32 puts a good run at
-                          // ~63% and a sloppy one at ~7%, which leaves room for
-                          // meta unlocks to lift a new player over time.
+    hpGrowth: 1.28,       // per wave, compounding. The master difficulty dial,
+                          // and re-measured every time the game changes shape:
+                          // 1.24 before relics existed, 1.32 after drafting
+                          // pushed a competent player to a 97% win rate, then
+                          // back to 1.28 once line-of-sight stopped monsters
+                          // reaching through walls and made every dungeon
+                          // meaningfully weaker. Simulated players now land at
+                          // ~55% (plays well) and ~10% (sloppy), ±10 points.
     damage: 6,
     damageGrowth: 1.1,
     attackRange: 36,
@@ -92,6 +94,7 @@ G.CFG = {
       name: 'Dart Trap', cost: 38, key: '3', hidden: true,
       color: '#57b0a8', damage: 4, interval: 1.5, range: 210,
       desc: 'Fires down its lane. Punishes long straight corridors.',
+      // Aimed by the player with R, not auto-chosen.
     },
     goblin: {
       name: 'Goblin', cost: 24, key: '4', monster: true,
