@@ -60,7 +60,17 @@ G.Level = class Level {
 
   /* ---- Layout ----------------------------------------------------------- */
 
+  /* Seeded generation. Entrance stays on the left and the vault on the right —
+     that constant is what keeps the space readable run to run — but their rows,
+     and every rock in between, come from the seed.
+
+     Connectivity is guaranteed constructively: each rock mass is only kept if
+     a path still exists after adding it. That's a full A* per rock, which at
+     this grid size is free, and it beats generate-then-validate-then-retry
+     because it can never fail and never needs a fallback layout. */
   _carve() {
+    const R = G.RNG;
+
     for (let ty = 0; ty < this.h; ty++) {
       for (let tx = 0; tx < this.w; tx++) {
         const border = tx === 0 || ty === 0 || tx === this.w - 1 || ty === this.h - 1;
@@ -68,26 +78,41 @@ G.Level = class Level {
       }
     }
 
-    // A few fixed rock masses. Hand-placed rather than random: the level is
-    // the same every run, so skill comes from how YOU build into it, and you
-    // can actually learn the space.
-    const rocks = [
-      [6, 2, 2, 3], [6, 11, 2, 3],
-      [11, 5, 3, 2], [11, 9, 3, 2],
-      [17, 3, 2, 3], [17, 10, 2, 3],
-      [9, 0, 1, 2], [14, 14, 1, 2],
-    ];
-    for (const [x, y, w, h] of rocks) {
-      for (let ty = y; ty < y + h; ty++) {
-        for (let tx = x; tx < x + w; tx++) {
-          if (this.inBounds(tx, ty)) this.tiles[this.i(tx, ty)] = G.BEDROCK;
-        }
-      }
-    }
-
-    // Guarantee the two anchor tiles are open.
+    this.entrance = { tx: 1, ty: R.int(2, this.h - 3) };
+    this.vault = { tx: this.w - 2, ty: R.int(2, this.h - 3) };
     this.tiles[this.i(this.entrance.tx, this.entrance.ty)] = G.FLOOR;
     this.tiles[this.i(this.vault.tx, this.vault.ty)] = G.FLOOR;
+
+    const masses = R.int(9, 15);
+    for (let m = 0; m < masses; m++) {
+      const vertical = R.chance(0.5);
+      const w = vertical ? R.int(1, 2) : R.int(2, 5);
+      const h = vertical ? R.int(2, 5) : R.int(1, 2);
+      const x = R.int(3, this.w - 3 - w);
+      const y = R.int(1, this.h - 2 - h);
+
+      const cells = [];
+      let touchesAnchor = false;
+      for (let ty = y; ty < y + h; ty++) {
+        for (let tx = x; tx < x + w; tx++) {
+          if (!this.inBounds(tx, ty)) continue;
+          if (this._nearAnchor(tx, ty, 2)) { touchesAnchor = true; break; }
+          if (this.tiles[this.i(tx, ty)] === G.FLOOR) cells.push(this.i(tx, ty));
+        }
+        if (touchesAnchor) break;
+      }
+      if (touchesAnchor || cells.length === 0) continue;
+
+      for (const i of cells) this.tiles[i] = G.BEDROCK;
+      if (!this.findPath(this.entrance, this.vault)) {
+        for (const i of cells) this.tiles[i] = G.FLOOR;   // would have sealed it
+      }
+    }
+  }
+
+  _nearAnchor(tx, ty, pad) {
+    return (Math.abs(tx - this.entrance.tx) <= pad && Math.abs(ty - this.entrance.ty) <= pad)
+        || (Math.abs(tx - this.vault.tx) <= pad && Math.abs(ty - this.vault.ty) <= pad);
   }
 
   /* ---- Building --------------------------------------------------------- */
@@ -113,7 +138,9 @@ G.Level = class Level {
     const def = G.CFG.place[kind];
     const obj = { kind, tx, ty, ...this.center(tx, ty) };
 
-    if (kind === 'spikes') { obj.armed = true; obj.rearm = 0; obj.known = false; }
+    if (kind === 'spikes' || kind === 'snare' || kind === 'shrieker') {
+      obj.armed = true; obj.rearm = 0; obj.known = false;
+    }
     if (kind === 'dart') {
       obj.timer = Math.random() * def.interval;
       obj.dir = this._bestLane(tx, ty);

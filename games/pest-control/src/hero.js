@@ -13,23 +13,30 @@
 window.G = window.G || {};
 
 G.Hero = class Hero {
-  constructor(level, memory, wave) {
+  /* `archetype` is drawn from the run seed by the game — a different man each
+     wave, so no single dungeon layout answers everything. */
+  constructor(level, memory, wave, archetype) {
     const C = G.CFG.hero;
     this.level = level;
     this.memory = memory;
     this.wave = wave;
+    this.arch = archetype || G.CFG.heroes[0];
 
     const start = level.center(level.entrance.tx, level.entrance.ty);
     this.x = start.x; this.y = start.y;
     this.radius = C.radius;
 
-    this.maxHp = Math.round(C.baseHp * Math.pow(C.hpGrowth, wave - 1));
+    this.maxHp = Math.round(C.baseHp * Math.pow(C.hpGrowth, wave - 1) * this.arch.hp);
     this.hp = this.maxHp;
-    this.damage = C.damage * Math.pow(C.damageGrowth, wave - 1);
+    this.damage = C.damage * Math.pow(C.damageGrowth, wave - 1) * this.arch.damage;
+    this.speed = C.speed * this.arch.speed;
 
     const lo = memory.loadout;
     this.potions = C.potions + (lo ? lo.potions : 0);
     this.damage *= lo ? lo.damageMul : 1;
+
+    this.rootTimer = 0;      // snares
+    this.vaultTimer = 0;     // Fool's Gold pause
 
     this.state = 'travel';           // travel | fight | flee | done
     this.status = null;              // looted | killed | retreated
@@ -49,7 +56,7 @@ G.Hero = class Hero {
     this.distanceTravelled = 0;
   }
 
-  get caution() { return this.memory.loadout ? this.memory.loadout.caution : 1; }
+  get caution() { return (this.memory.loadout ? this.memory.loadout.caution : 1) * this.arch.caution; }
 
   speak(line, time = 2.6) { this.say = line; this.sayTimer = time; }
 
@@ -117,6 +124,19 @@ G.Hero = class Hero {
 
     if (this.drinkTimer > 0) { this.drinkTimer -= dt; return; }
 
+    // Snared: he can still swing at whatever reaches him, but he cannot move.
+    if (this.rootTimer > 0) {
+      this.rootTimer -= dt;
+      const pinned = this.pickTarget(game);
+      if (pinned && this.attackCd <= 0 &&
+          G.U.dist(this.x, this.y, pinned.x, pinned.y) <= G.CFG.hero.attackRange + pinned.radius) {
+        this.attackCd = G.CFG.hero.attackCooldown;
+        this.swing = 0.16;
+        game.damageMonster(pinned, this.damage, this.x, this.y);
+      }
+      return;
+    }
+
     // --- Survival decisions ------------------------------------------------
     const frac = this.hp / this.maxHp;
     if (frac <= G.CFG.hero.potionAtHp && this.potions > 0) {
@@ -128,7 +148,7 @@ G.Hero = class Hero {
       G.FX.text(this.x, this.y - 26, '+heal', { color: '#8ee06f', size: 14 });
       return;
     }
-    if (frac <= G.CFG.hero.fleeAtHp && this.state !== 'flee' && !game.sealed) {
+    if (frac <= G.CFG.hero.fleeAtHp && this.state !== 'flee' && !game.sealed && !this.arch.neverFlees) {
       // Once he commits to leaving he does not turn around. Without that
       // commitment he oscillates on the HP threshold forever.
       this.state = 'flee';
@@ -180,6 +200,15 @@ G.Hero = class Hero {
 
     const v = this.level.center(this.level.vault.tx, this.level.vault.ty);
     if (G.U.dist(this.x, this.y, v.x, v.y) < 24) {
+      // Fool's Gold buys a few seconds of him standing on the vault. Whether
+      // that's worth a relic slot depends entirely on what you built nearby,
+      // which is exactly the kind of decision a draft should be making you take.
+      const delay = game.mods ? game.mods.vaultDelay : 0;
+      if (delay > 0 && this.vaultTimer < delay) {
+        this.vaultTimer += dt;
+        if (this.vaultTimer < 0.1) this.speak('What is this? Fool\u2019s gold\u2026');
+        return;
+      }
       this.state = 'done';
       this.status = 'looted';
     }
@@ -217,7 +246,7 @@ G.Hero = class Hero {
 
   moveToward(tx, ty, dt) {
     const [dx, dy] = G.U.norm(tx - this.x, ty - this.y);
-    const sp = G.CFG.hero.speed * (this.state === 'flee' ? G.CFG.hero.fleeSpeedMul : 1);
+    const sp = this.speed * (this.state === 'flee' ? G.CFG.hero.fleeSpeedMul : 1);
     this.x += dx * sp * dt;
     this.y += dy * sp * dt;
     this.facing = Math.atan2(dy, dx);
@@ -229,7 +258,8 @@ G.Hero = class Hero {
   hurt(amount, kind, fromX, fromY) {
     const lo = this.memory.loadout;
     const isTrap = kind === 'spikes' || kind === 'dart';
-    const mul = lo ? (isTrap ? lo.trapMul : lo.monsterMul) : 1;
+    const pierced = isTrap && G.Game.mods && G.Game.mods.pierceBoots > 0;
+    const mul = !lo ? 1 : (isTrap ? (pierced ? 1 : lo.trapMul) : lo.monsterMul);
     const dealt = Math.max(1, Math.round(amount * mul));
 
     this.hp -= dealt;

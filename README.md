@@ -14,7 +14,7 @@ dependencies.
 Three options, cheapest first.
 
 **Send someone a file.** `node build.js` writes `dist/pest-control.html` — one
-self-contained file, ~76 KB, no dependencies. Email it, drop it in a chat,
+self-contained file, ~110 KB, no dependencies. Email it, drop it in a chat,
 put it on a USB stick. They double-click it and it runs, offline, forever. This
 is the most durable way to hand someone a small game.
 
@@ -42,18 +42,55 @@ Vercel, or `npx serve .` on your own machine.
 Spend gold on walls, traps and monsters. Hit *Send Him In* and an AI adventurer
 walks into your level and plays it — pathfinding to your vault, fighting your
 goblins, eating your spikes. Kill him and you keep the treasure. Lose five
-treasures and the dungeon falls. Hold for eight waves and you win.
+treasures and the dungeon falls. Hold for ten waves and you win.
 
 The catch: **he remembers.** Traps are invisible until they fire once. After
 that he routes around them permanently, and he comes back wearing whatever
 counters the thing that hurt him most. A dungeon that stops changing is a
 dungeon he solves.
 
+## The roguelite loop
+
+Every run is different, and every run leaves you something.
+
+- **A new dungeon each time.** Layout, entrance and vault are generated from a
+  seed. Connectivity is guaranteed constructively — a rock formation is only
+  kept if a path still exists after placing it — so a level can never generate
+  unsolvable. Verified across 400 generated levels: zero failures.
+- **A relic every wave.** Draft one of three after each wave. The pool is
+  written to change what you *build*, not just your numbers: Fool's Gold makes
+  him pause at the vault, Amnesia Moss wipes traps off his map, Quicklime
+  cancels the boots he bought to counter you.
+- **A different man each wave.** The Squire is ordinary. The Scout is fragile,
+  fast, and brilliant at avoiding what he knows. The Knight walks straight over
+  traps he remembers. The Zealot never retreats. One build does not answer all
+  four.
+- **Dread, win or lose.** Every run pays out, and Dread buys permanent unlocks
+  in **the Warren** — new pieces (Snare, Shrieker) and perks. Losing still
+  moves you forward; that's the whole difference between a roguelike and a
+  roguelite. Nothing in the Warren is required to win.
+
+### Seeds — send someone your dungeon
+
+The seed code is shown in the corner during play and on the end screen. Append
+it to the URL and you get that exact dungeon back, down to the relic offers:
+
+```
+…/pest-control/index.html#seed=2ZJNDH    a specific dungeon
+…/pest-control/index.html#daily          today's dungeon, same for everyone
+…/pest-control/index.html#seed=matt      any text works as a seed
+```
+
+Codes round-trip exactly — the code you're shown is the code that reproduces
+your run. That sounds obvious; the first implementation displayed a code that
+decoded to a *different* dungeon, which would have quietly made seed-sharing
+useless.
+
 ## Controls
 
 | | |
 |---|---|
-| `1`–`5` or click the palette | pick what to build |
+| `1`–`7` or click the palette | pick what to build |
 | left click | place · right click | salvage (85% refund) |
 | `space` | send him in |
 | left click a trap **during a run** | spring it by hand — your only live control |
@@ -112,9 +149,21 @@ visible from reading the code:
    the same player with 15% sloppiness won 0%. Raising treasures from three to
    five converted a pass/fail exam into an actual difficulty gradient.
 
-Current state: a perfect bot wins but limps home with 1 of 5 treasures; a
-sloppy one wins about 30% of runs. **This has never been played by a human** —
-if it feels wrong, `hero.hpGrowth` and `BOUNTY_BASE` are the two knobs.
+5. **Relics broke the curve, as they should have.** Nine drafted relics per run
+   took a competent simulated player from a hard-won victory to a 97% win rate.
+   Hero scaling was re-tuned against the relic-aware bot rather than left at a
+   number measured before relics existed.
+
+Current state, measured against simulated players over 30 runs per setting:
+
+| player | wins | avg wave reached |
+|---|---|---|
+| plays well, drafts well | ~63% | 9.6 / 10 |
+| sloppy reads, random drafts | ~7% | 7.5 / 10 |
+
+That gap is deliberate: it leaves room for Warren unlocks to lift a new player
+over time. **This has never been played by a human** — if it feels wrong,
+`hero.hpGrowth` is the master difficulty dial and `BOUNTY_BASE` is the economy.
 
 ## Where to take it next
 
@@ -122,13 +171,14 @@ Roughly in order of payoff:
 
 1. **Sound.** Still the highest value-per-hour thing you can add to any game.
 2. **Show his intent during the build phase** — draw the route he'd currently
-   take. It turns building from guesswork into a conversation.
-3. **Let traps combo.** A snare that holds him on a spike tile is worth more
-   than either alone, and combos are where build variety comes from.
-4. **More equipment, and let him pick badly.** A hero who over-corrects for
-   last wave is exploitable — bait him into the wrong loadout.
-5. **Named heroes with different personalities** — one greedy, one cautious,
-   one that beelines the vault. Right now every wave is the same man.
+   take. It turns building from guesswork into a conversation, and it's the
+   single biggest readability win left.
+3. **More relics, and rarer ones.** The pool is 15; a draft gets stale around
+   the third run. Tiered rarity would also give the draft a shape.
+4. **Let him pick his loadout badly.** He over-corrects for last wave, which
+   means a player who understands that could bait him into the wrong armour.
+5. **Elite waves.** A named hero with a modifier every third wave, telegraphed
+   a wave ahead so you can prepare for it specifically.
 6. **Persist his memory across whole runs.** "You again. Still using spikes?"
 
 ---

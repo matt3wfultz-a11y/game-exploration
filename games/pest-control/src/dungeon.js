@@ -27,7 +27,9 @@ G.Dungeon = {
       if (d <= def.attackRange + hero.radius) {
         if (m.cd <= 0) {
           m.cd = def.attackCooldown;
-          hero.hurt(def.damage, m.kind, m.x, m.y);
+          // Choke: monsters hit harder once he's wounded.
+          const choke = (game.mods && hero.hp / hero.maxHp < 0.5) ? game.mods.lowHpDamageMul : 1;
+          hero.hurt(Math.round(def.damage * choke), m.kind, m.x, m.y);
           G.FX.burst(hero.x, hero.y, 6, {
             color: def.color, speed: 130, life: 0.3,
             dir: Math.atan2(hero.y - m.y, hero.x - m.x), spread: 1.2,
@@ -78,6 +80,17 @@ G.Dungeon = {
       return;
     }
 
+    if (t.kind === 'snare' || t.kind === 'shrieker') {
+      t.rearm = Math.max(0, t.rearm - dt);
+      if (t.rearm <= 0) t.armed = true;
+      if (!hero || hero.state === 'done' || !t.armed) return;
+      const ht = game.level.tileOf(hero.x, hero.y);
+      if (ht.tx !== t.tx || ht.ty !== t.ty) return;
+      if (t.kind === 'snare') this.springSnare(t, game);
+      else this.springShrieker(t, game);
+      return;
+    }
+
     if (t.kind === 'dart') {
       t.timer -= dt;
       if (!hero || hero.state === 'done') return;
@@ -85,7 +98,7 @@ G.Dungeon = {
       const inLane = (t.dir.dx !== 0 && ht.ty === t.ty && Math.sign(ht.tx - t.tx) === t.dir.dx)
                   || (t.dir.dy !== 0 && ht.tx === t.tx && Math.sign(ht.ty - t.ty) === t.dir.dy);
       if (!inLane) return;
-      if (G.U.dist(t.x, t.y, hero.x, hero.y) > def.range) return;
+      if (G.U.dist(t.x, t.y, hero.x, hero.y) > def.range + (game.mods ? game.mods.dartRange : 0)) return;
       if (!game.level.laneClearTo(t.tx, t.ty, t.dir, ht.tx, ht.ty, 24)) return;
       if (t.timer <= 0) this.fireDart(t, game);
     }
@@ -95,13 +108,13 @@ G.Dungeon = {
     const def = G.CFG.place.spikes;
     const hero = game.hero;
     t.armed = false;
-    t.rearm = def.rearm;
+    t.rearm = def.rearm * (game.mods ? game.mods.spikeRearmMul : 1);
 
     G.FX.burst(t.x, t.y, 12, { color: def.color, speed: 150, life: 0.35, size: 4 });
 
     if (hero && hero.state !== 'done' &&
         G.U.dist(t.x, t.y, hero.x, hero.y) < G.CFG.trigger.radius + hero.radius) {
-      hero.hurt(def.damage, 'spikes', t.x, t.y);
+      hero.hurt(def.damage + (game.mods ? game.mods.spikeDamage : 0), 'spikes', t.x, t.y);
       // Discovered. He will route around this tile for the rest of the run.
       game.revealTrap(t);
       return true;
@@ -115,13 +128,50 @@ G.Dungeon = {
     game.projectiles.push({
       x: t.x, y: t.y,
       vx: t.dir.dx * 300, vy: t.dir.dy * 300,
-      radius: 4, damage: def.damage, life: 2.5,
+      radius: 4, damage: def.damage + (game.mods ? game.mods.dartDamage : 0), life: 2.5,
     });
     G.FX.burst(t.x, t.y, 4, {
       color: def.color, speed: 90, life: 0.2,
       dir: Math.atan2(t.dir.dy, t.dir.dx), spread: 0.6,
     });
     // Seeing a dart fly is enough — he doesn't have to be hit to learn it.
+    game.revealTrap(t);
+  },
+
+  /* Snares deal no damage at all. Their whole value is holding him inside
+     someone else's reach — the first piece in the game that is worthless
+     alone and strong in combination. */
+  springSnare(t, game) {
+    const def = G.CFG.place.snare;
+    const hero = game.hero;
+    t.armed = false;
+    t.rearm = def.rearm;
+    hero.rootTimer = def.rootTime * (game.mods ? game.mods.snareMul : 1);
+    hero.speak('My leg\u2014!', 1.6);
+    G.FX.ring(t.x, t.y, { color: def.color, radius: 30, life: 0.4, width: 3 });
+    G.FX.text(t.x, t.y - 18, 'SNARED', { color: def.color, size: 13, life: 1.2 });
+    game.revealTrap(t);
+  },
+
+  /* Pulls every guard in range onto him at once, which is how you beat a hero
+     who has learned to route around your monsters one at a time. */
+  springShrieker(t, game) {
+    const def = G.CFG.place.shrieker;
+    t.armed = false;
+    t.rearm = def.rearm;
+    let called = 0;
+    for (const p of game.level.allPlaced()) {
+      const d = G.CFG.place[p.kind];
+      if (!d.monster || p.hp <= 0) continue;
+      if (G.U.dist(p.x, p.y, t.x, t.y) > def.callRadius) continue;
+      // Re-post them onto him: they chase from wherever they now stand.
+      p.post = { x: game.hero.x, y: game.hero.y };
+      called++;
+    }
+    G.FX.ring(t.x, t.y, { color: def.color, radius: def.callRadius, life: 0.7, width: 3 });
+    G.FX.addShake(7);
+    G.FX.text(t.x, t.y - 18, called ? `CALLED ${called}` : 'NOBODY CAME',
+      { color: def.color, size: 13, life: 1.4 });
     game.revealTrap(t);
   },
 
@@ -159,6 +209,46 @@ G.Dungeon = {
           ctx.closePath();
           ctx.fill();
         }
+      }
+      ctx.globalAlpha = 1;
+      if (known) this._knownMark(ctx, x, y, T);
+      return;
+    }
+
+    if (p.kind === 'snare') {
+      const known = game.memory.knows(p.ty * C.GRID_W + p.tx);
+      ctx.globalAlpha = p.armed ? (known ? 0.5 : 0.95) : 0.25;
+      ctx.strokeStyle = def.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x + T / 2, y + T / 2, T * 0.28, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + T / 2 - 9, y + T / 2 - 9);
+      ctx.lineTo(x + T / 2 + 9, y + T / 2 + 9);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      if (known) this._knownMark(ctx, x, y, T);
+      return;
+    }
+
+    if (p.kind === 'shrieker') {
+      const known = game.memory.knows(p.ty * C.GRID_W + p.tx);
+      ctx.globalAlpha = p.armed ? (known ? 0.5 : 0.95) : 0.25;
+      ctx.fillStyle = def.color;
+      ctx.beginPath();
+      ctx.moveTo(x + T / 2, y + 8);
+      ctx.lineTo(x + T - 9, y + T - 9);
+      ctx.lineTo(x + 9, y + T - 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha *= 0.5;
+      ctx.strokeStyle = def.color;
+      ctx.lineWidth = 1.5;
+      for (let i = 1; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.arc(x + T / 2, y + T / 2, 12 + i * 5, -0.9, -0.9 + 1.8);
+        ctx.stroke();
       }
       ctx.globalAlpha = 1;
       if (known) this._knownMark(ctx, x, y, T);
