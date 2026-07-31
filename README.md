@@ -177,6 +177,13 @@ That gap is deliberate: it leaves room for Warren unlocks to lift a new player
 over time. **This has never been played by a human** — if it feels wrong,
 `hero.hpGrowth` is the master difficulty dial and `BOUNTY_BASE` is the economy.
 
+## Art
+
+`games/pest-control/ART.md` lists every asset needed to replace the programmer
+art, with sizes and frame counts taken from the actual draw calls. Roughly 80
+sprite frames and 40 UI pieces for a full pass; the cheapest meaningful test of
+a direction is floor + both wall types + a hero walk cycle, about 15 frames.
+
 ## Where to take it next
 
 Roughly in order of payoff:
